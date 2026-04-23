@@ -1,0 +1,16 @@
+{
+  "name": "hackathon-dashboard-firebase-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Firebase backend utilities for a hackathon dashboard",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "init:db": "node src/scripts/initFirestore.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "firebase": "^10.14.1"
+  }
+}
