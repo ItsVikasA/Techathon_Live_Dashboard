@@ -48,6 +48,9 @@ import {
   FiZap,
   FiCheck,
   FiClock,
+  FiPlus,
+  FiEdit3,
+  FiMinus,
 } from "react-icons/fi";
 import { auth, db } from "./firebase";
 import {
@@ -57,6 +60,16 @@ import {
   type ScorePoint,
 } from "./components/AnalyticsCharts";
 import AdminControlsPage from "./components/AdminControlsPage";
+import {
+  QuickLinksTile,
+  ProblemStatementsTile,
+  QuickHelpTile,
+  TeamSpotlightTile,
+  IdeaBoardTile,
+  ResourceHubTile,
+  HelpRequestsFeedTile,
+  AudienceVotingTile,
+} from "./components/DashboardTiles";
 import type {
   ActivityItem,
   Announcement,
@@ -64,7 +77,11 @@ import type {
   ScheduleItem,
   StatDoc,
   Team,
+  TileConfig,
+  TileType,
+  TileSize,
 } from "./types";
+import { DEFAULT_TILES, TILE_TEMPLATES } from "./types";
 
 const sidebarItems = [
   { label: "Dashboard", icon: FiGrid },
@@ -1038,6 +1055,100 @@ function App() {
   const [projectorSlide, setProjectorSlide] = useState(0);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
+
+  // ============ TILE GRID STATE ============
+  const [tiles, setTiles] = useState<TileConfig[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("dashboard-tiles");
+      if (saved) {
+        try { return JSON.parse(saved); } catch { /* fall through */ }
+      }
+    }
+    return DEFAULT_TILES;
+  });
+  const [editMode, setEditMode] = useState(false);
+  const [showAddTilePanel, setShowAddTilePanel] = useState(false);
+  const [draggedTileId, setDraggedTileId] = useState<string | null>(null);
+  const [dragOverTileId, setDragOverTileId] = useState<string | null>(null);
+  const [removingTileId, setRemovingTileId] = useState<string | null>(null);
+
+  // Persist tile layout
+  useEffect(() => {
+    localStorage.setItem("dashboard-tiles", JSON.stringify(tiles));
+    // Also persist to Firestore if admin
+    if (isAdmin) {
+      setDoc(doc(db, "dashboardLayout", "config"), { tiles, lastUpdated: serverTimestamp() }, { merge: true }).catch(() => {});
+    }
+  }, [tiles, isAdmin]);
+
+  // Load layout from Firestore on mount
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "dashboardLayout", "config"), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.tiles && Array.isArray(data.tiles)) {
+          setTiles(data.tiles);
+          localStorage.setItem("dashboard-tiles", JSON.stringify(data.tiles));
+        }
+      }
+    }, () => {});
+    return () => unsub();
+  }, []);
+
+  const handleRemoveTile = useCallback((tileId: string) => {
+    setRemovingTileId(tileId);
+    setTimeout(() => {
+      setTiles(prev => prev.filter(t => t.id !== tileId));
+      setRemovingTileId(null);
+    }, 350);
+  }, []);
+
+  const handleAddTile = useCallback((type: TileType, defaultSize: TileSize) => {
+    const newTile: TileConfig = {
+      id: `tile-${type}-${Date.now()}`,
+      type,
+      size: defaultSize,
+      order: tiles.length,
+      visible: true,
+    };
+    setTiles(prev => [...prev, newTile]);
+    setShowAddTilePanel(false);
+  }, [tiles.length]);
+
+  const handleResizeTile = useCallback((tileId: string) => {
+    setTiles(prev => prev.map(t => {
+      if (t.id !== tileId) return t;
+      const sizes: TileSize[] = ["sm", "md", "lg"];
+      const nextIdx = (sizes.indexOf(t.size) + 1) % sizes.length;
+      return { ...t, size: sizes[nextIdx] };
+    }));
+  }, []);
+
+  const handleDragStart = useCallback((tileId: string) => {
+    setDraggedTileId(tileId);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, tileId: string) => {
+    e.preventDefault();
+    setDragOverTileId(tileId);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    if (draggedTileId && dragOverTileId && draggedTileId !== dragOverTileId) {
+      setTiles(prev => {
+        const fromIdx = prev.findIndex(t => t.id === draggedTileId);
+        const toIdx = prev.findIndex(t => t.id === dragOverTileId);
+        if (fromIdx === -1 || toIdx === -1) return prev;
+        const next = [...prev];
+        const [moved] = next.splice(fromIdx, 1);
+        next.splice(toIdx, 0, moved);
+        return next.map((t, i) => ({ ...t, order: i }));
+      });
+    }
+    setDraggedTileId(null);
+    setDragOverTileId(null);
+  }, [draggedTileId, dragOverTileId]);
+
   const [theme, setTheme] = useState<"default" | "brutalist">(() => {
     if (typeof window !== "undefined") {
       return (localStorage.getItem("dashboard-theme") as "default" | "brutalist") || "brutalist";
@@ -1662,6 +1773,130 @@ function App() {
     return 0;
   }, [resolvedStats.eventPhase, resolvedStats.hackathonStartTime]);
 
+  // ============ TILE CONTENT RENDERER ============
+  const renderTileContent = useCallback((tile: TileConfig) => {
+    switch (tile.type) {
+      case "eventProgress":
+        return <EventProgressTracker currentPhase={resolvedStats.eventPhase} />;
+      case "masterClock":
+        return <HackathonClockCard startTime={resolvedStats.hackathonStartTime} />;
+      case "stats":
+        return (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <StatCard title="Total Students" value={resolvedStats.totalParticipants} accent="green" icon={FiUsers} />
+            <StatCard title="Total Teams" value={resolvedStats.teamsRegistered} accent="purple" icon={FiTarget} />
+            <StatCard title="Prize Pool" value={resolvedStats.prizePool} prefix="₹" accent="orange" icon={FiGift} />
+            <StatCard title="Projects Submitted" value={resolvedStats.projectsSubmitted} accent="blue" icon={FiAward} />
+            <StatCard title="Active Now" value={resolvedStats.activeNow} accent="cyan" icon={FiTrendingUp} />
+          </div>
+        );
+      case "analytics":
+        return (
+          <AnalyticsCharts
+            departmentData={resolvedDepartmentData}
+            statusData={resolvedStatusData}
+            scoreData={resolvedScoreData}
+          />
+        );
+      case "countdown":
+        return (
+          <CountdownTimer
+            event={nextUpcomingEvent?.item ?? null}
+            targetMs={nextUpcomingEvent?.targetMs ?? null}
+            onReachedZero={handleCountdownReachedZero}
+          />
+        );
+      case "circularProgress":
+        return <CircularProgress percentage={completionPercentage} label="Hackathon Progress" />;
+      case "leaderboard":
+        return <Leaderboard teams={leaderboardTeams} trendingIds={trendingTeamIds} />;
+      case "announcements":
+        return (
+          <article className="t-card p-5 h-full">
+            <h2 className="flex items-center gap-2 mb-3 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+              <div className="icon-circle icon-circle-orange" style={{ width: 32, height: 32 }}>
+                <FiBell size={15} />
+              </div>
+              Announcements
+            </h2>
+            <div className="space-y-2">
+              {state.announcements.slice(0, 4).map((item) => (
+                <div key={item.id} className="t-inset p-3" style={{ borderRadius: 'var(--card-radius)' }}>
+                  <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{item.message}</p>
+                  <p className="mt-1 text-[11px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{item.type}</p>
+                </div>
+              ))}
+              {state.announcements.length === 0 && <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No announcements available.</p>}
+            </div>
+          </article>
+        );
+      case "schedule":
+        return (
+          <article className="t-card p-5 h-full">
+            <h2 className="flex items-center gap-2 mb-3 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+              <div className="icon-circle icon-circle-blue" style={{ width: 32, height: 32 }}>
+                <FiClock size={15} />
+              </div>
+              Today's Schedule
+            </h2>
+            <div className="space-y-2">
+              {state.schedule.slice(0, 5).map((item) => (
+                <div key={item.id} className="flex items-center justify-between t-inset p-3" style={{ borderRadius: 'var(--card-radius)' }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.status === 'live' ? 'var(--accent-green)' : item.status === 'completed' ? 'var(--text-muted)' : 'var(--accent-blue)', boxShadow: item.status === 'live' ? '0 0 8px var(--accent-green)' : 'none' }}></div>
+                    <div>
+                      <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', textDecoration: item.status === 'completed' ? 'line-through' : 'none', opacity: item.status === 'completed' ? 0.5 : 1 }}>{item.title}</p>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.time}</p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full" style={{ background: item.status === 'live' ? 'var(--accent-green-dim)' : 'var(--accent-blue-dim)', color: item.status === 'live' ? 'var(--accent-green)' : 'var(--accent-blue)' }}>
+                    {item.status}
+                  </span>
+                </div>
+              ))}
+              {state.schedule.length === 0 && <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No schedule data yet.</p>}
+            </div>
+            {isAdmin && (
+              <form className="mt-3 flex gap-2" onSubmit={async (e) => {
+                e.preventDefault();
+                const form = e.currentTarget as HTMLFormElement;
+                const title = (form.elements.namedItem("stitle") as HTMLInputElement).value;
+                const time = (form.elements.namedItem("stime") as HTMLInputElement).value;
+                if (!title || !time) return;
+                await addDoc(collection(db, "schedule"), { title, time, status: "upcoming" });
+                (form.elements.namedItem("stitle") as HTMLInputElement).value = "";
+                (form.elements.namedItem("stime") as HTMLInputElement).value = "";
+              }}>
+                <input name="stitle" placeholder="Event" required className="flex-1 t-input px-2 py-1.5 text-xs" />
+                <input name="stime" placeholder="Time" required className="w-20 t-input px-2 py-1.5 text-xs" />
+                <button type="submit" className="px-3 py-1.5 text-xs font-bold text-black rounded" style={{ background: 'var(--accent-blue)' }}>+</button>
+              </form>
+            )}
+          </article>
+        );
+      case "activityFeed":
+        return <ActivityFeed items={state.activity} freshIds={freshActivityIds} />;
+      case "quickLinks":
+        return <QuickLinksTile />;
+      case "problemStatements":
+        return <ProblemStatementsTile />;
+      case "quickHelp":
+        return <QuickHelpTile />;
+      case "teamSpotlight":
+        return <TeamSpotlightTile teams={leaderboardTeams} />;
+      case "ideaBoard":
+        return <IdeaBoardTile />;
+      case "resourceHub":
+        return <ResourceHubTile />;
+      case "helpRequests":
+        return <HelpRequestsFeedTile isAdmin={isAdmin} />;
+      case "audienceVoting":
+        return <AudienceVotingTile isAdmin={isAdmin} />;
+      default:
+        return <div className="t-card p-5 h-full flex items-center justify-center"><p className="text-sm" style={{ color: 'var(--text-muted)' }}>Unknown tile</p></div>;
+    }
+  }, [resolvedStats, resolvedDepartmentData, resolvedStatusData, resolvedScoreData, nextUpcomingEvent, handleCountdownReachedZero, completionPercentage, leaderboardTeams, trendingTeamIds, state.announcements, state.schedule, state.activity, freshActivityIds, isAdmin]);
+
   if (projectorMode) {
     const labels = ["24HR COUNTDOWN", "LIVE STATS", "RANKINGS", "MEDIA FEED"];
     const borderColors = ["border-[#0F7B5F]", "border-yellow-500", "border-[#3B82F6]", "border-[#A855F7]"];
@@ -1769,6 +2004,21 @@ function App() {
                   Projector
                 </button>
               )}
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => { setEditMode(prev => !prev); if (editMode) setShowAddTilePanel(false); }}
+                  className="inline-flex h-11 items-center gap-2 px-4 text-sm font-semibold transition-all t-card rounded-full"
+                  style={{
+                    color: editMode ? '#000' : 'var(--text-primary)',
+                    background: editMode ? 'var(--accent-green)' : undefined,
+                    boxShadow: editMode ? '0 0 20px var(--accent-green-dim)' : 'none',
+                  }}
+                >
+                  <FiEdit3 />
+                  {editMode ? "Done" : "Edit Layout"}
+                </button>
+              )}
               {/* Theme Toggle */}
               <button
                 type="button"
@@ -1865,128 +2115,128 @@ function App() {
               <GalleryPanel items={state.gallery} />
             </section>
           ) : (
-            <div className="animate-fade-in">
-          <section className="mb-6">
-            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl" style={{ color: 'var(--text-primary)' }}>Event Dashboard</h1>
-            <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>Real-time pulse of your hackathon operations.</p>
-            <LiveStatus isLive={state.isLive} lastUpdatedMs={state.lastUpdatedMs} />
+            <div className={`animate-fade-in ${editMode ? 'edit-mode' : ''}`}>
+          <section className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-semibold tracking-tight md:text-4xl" style={{ color: 'var(--text-primary)' }}>Event Dashboard</h1>
+              <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>Real-time pulse of your hackathon operations.</p>
+              <LiveStatus isLive={state.isLive} lastUpdatedMs={state.lastUpdatedMs} />
+            </div>
+            {editMode && (
+              <div className="flex items-center gap-2 animate-fade-in">
+                <span className="px-3 py-1 text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--accent-green)', background: 'var(--accent-green-dim)', border: '2px solid var(--accent-green)' }}>
+                  EDIT MODE
+                </span>
+              </div>
+            )}
+          </section>
             {countdownNotice && (
-              <p className="mt-2 px-3 py-2 text-xs" style={{ background: 'var(--accent-green-dim)', color: 'var(--accent-green)', border: '1px solid rgba(45,224,143,0.2)', borderRadius: 'var(--card-radius)' }}>
+              <p className="mb-4 px-3 py-2 text-xs" style={{ background: 'var(--accent-green-dim)', color: 'var(--accent-green)', border: '1px solid rgba(45,224,143,0.2)', borderRadius: 'var(--card-radius)' }}>
                 {countdownNotice}
               </p>
             )}
             {state.listenerError && (
-              <p className="mt-2 px-3 py-2 text-xs" style={{ background: 'var(--accent-orange-dim)', color: 'var(--accent-orange)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: 'var(--card-radius)' }}>
+              <p className="mb-4 px-3 py-2 text-xs" style={{ background: 'var(--accent-orange-dim)', color: 'var(--accent-orange)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: 'var(--card-radius)' }}>
                 Firestore listener issue: {state.listenerError}
               </p>
             )}
-          </section>
 
-          <section className="mb-6 grid gap-6 lg:grid-cols-[1fr_300px]">
-            <EventProgressTracker currentPhase={resolvedStats.eventPhase} />
-            <HackathonClockCard startTime={resolvedStats.hackathonStartTime} />
-          </section>
+          {/* ============ DYNAMIC TILE GRID ============ */}
+          <div className="tile-grid">
+            {tiles.filter(t => t.visible).map((tile) => (
+              <div
+                key={tile.id}
+                className={`tile-wrapper tile-${tile.size} ${draggedTileId === tile.id ? 'tile-dragging' : ''} ${dragOverTileId === tile.id ? 'tile-drag-over' : ''} ${removingTileId === tile.id ? 'tile-removing' : 'tile-entering'}`}
+                draggable={editMode}
+                onDragStart={() => handleDragStart(tile.id)}
+                onDragOver={(e) => handleDragOver(e, tile.id)}
+                onDragEnd={handleDragEnd}
+                onDragLeave={() => setDragOverTileId(null)}
+              >
+                {/* Delete button - only in edit mode */}
+                {editMode && (
+                  <button
+                    type="button"
+                    className="tile-delete-btn"
+                    onClick={(e) => { e.stopPropagation(); handleRemoveTile(tile.id); }}
+                    title="Remove tile"
+                  >
+                    <FiMinus />
+                  </button>
+                )}
 
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-6">
-            <StatCard title="Total Students" value={resolvedStats.totalParticipants} accent="green" icon={FiUsers} />
-            <StatCard title="Total Teams" value={resolvedStats.teamsRegistered} accent="purple" icon={FiTarget} />
-            <StatCard title="Prize Pool" value={resolvedStats.prizePool} prefix="₹" accent="orange" icon={FiGift} />
-            <StatCard title="Projects Submitted" value={resolvedStats.projectsSubmitted} accent="blue" icon={FiAward} />
-            <StatCard title="Active Now" value={resolvedStats.activeNow} accent="cyan" icon={FiTrendingUp} />
-          </section>
+                {/* Resize handle - only in edit mode */}
+                {editMode && (
+                  <button
+                    type="button"
+                    className="tile-resize-handle"
+                    onClick={(e) => { e.stopPropagation(); handleResizeTile(tile.id); }}
+                    title={`Size: ${tile.size.toUpperCase()} — Click to cycle`}
+                  >
+                    <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M14 2L2 14M14 6L6 14M14 10L10 14" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                )}
 
-          {/* 2-Column Layout: Main + Right Sidebar */}
-          <section className="grid gap-6 xl:grid-cols-[1fr_380px]">
-            {/* Left - Main Content */}
-            <div className="space-y-6">
-              <AnalyticsCharts
-                departmentData={resolvedDepartmentData}
-                statusData={resolvedStatusData}
-                scoreData={resolvedScoreData}
-              />
-
-              <div className="grid gap-4 md:grid-cols-[1fr_auto]">
-                <CountdownTimer
-                  event={nextUpcomingEvent?.item ?? null}
-                  targetMs={nextUpcomingEvent?.targetMs ?? null}
-                  onReachedZero={handleCountdownReachedZero}
-                />
-                <CircularProgress percentage={completionPercentage} label="Hackathon Progress" />
+                {renderTileContent(tile)}
               </div>
+            ))}
+          </div>
 
-              <Leaderboard teams={leaderboardTeams} trendingIds={trendingTeamIds} />
+          {/* ============ FLOATING ADD TILE BUTTON ============ */}
+          {editMode && (
+            <button
+              type="button"
+              onClick={() => setShowAddTilePanel(prev => !prev)}
+              className="fixed bottom-28 right-8 z-[999] flex items-center gap-2 px-5 py-3 text-sm font-black uppercase tracking-wider text-black transition-all animate-fade-in"
+              style={{
+                background: 'var(--accent-green)',
+                border: '3px solid #fff',
+                boxShadow: '6px 6px 0px #000, 0 0 30px var(--accent-green-dim)',
+              }}
+            >
+              <FiPlus size={18} />
+              Add Tile
+            </button>
+          )}
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <article className="t-card p-5">
-                  <h2 className="flex items-center gap-2 mb-3 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    <div className="icon-circle icon-circle-orange" style={{ width: 32, height: 32 }}>
-                      <FiBell size={15} />
-                    </div>
-                    Announcements
+          {/* ============ ADD TILE PANEL ============ */}
+          {showAddTilePanel && (
+            <div className="fixed inset-0 z-[9998]" onClick={() => setShowAddTilePanel(false)}>
+              <div
+                className="absolute right-0 top-0 h-full w-full max-w-md p-6 overflow-y-auto add-tile-panel-enter"
+                style={{ background: 'var(--bg-surface)', borderLeft: '4px solid var(--accent-green)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-black uppercase tracking-wider" style={{ color: 'var(--accent-green)' }}>
+                    + Add Tile
                   </h2>
-                  <div className="space-y-2">
-                    {state.announcements.slice(0, 4).map((item) => (
-                      <div key={item.id} className="t-inset p-3" style={{ borderRadius: 'var(--card-radius)' }}>
-                        <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{item.message}</p>
-                        <p className="mt-1 text-[11px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{item.type}</p>
+                  <button onClick={() => setShowAddTilePanel(false)} className="p-2" style={{ color: 'var(--text-secondary)' }}>
+                    <FiX size={20} />
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {TILE_TEMPLATES.map((tmpl) => (
+                    <button
+                      key={tmpl.type}
+                      type="button"
+                      onClick={() => handleAddTile(tmpl.type, tmpl.defaultSize)}
+                      className="tile-template-card w-full text-left flex items-center gap-4"
+                    >
+                      <span className="text-3xl flex-shrink-0">{tmpl.icon}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{tmpl.label}</p>
+                        <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{tmpl.description}</p>
                       </div>
-                    ))}
-                    {state.announcements.length === 0 && (
-                      <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No announcements available.</p>
-                    )}
-                  </div>
-                </article>
-
-                <article className="t-card p-5">
-                  <h2 className="flex items-center gap-2 mb-3 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    <div className="icon-circle icon-circle-blue" style={{ width: 32, height: 32 }}>
-                      <FiClock size={15} />
-                    </div>
-                    Today's Schedule
-                  </h2>
-                  <div className="space-y-2">
-                    {state.schedule.slice(0, 5).map((item) => (
-                      <div key={item.id} className="flex items-center justify-between t-inset p-3" style={{ borderRadius: 'var(--card-radius)' }}>
-                        <div className="flex items-center gap-3">
-                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.status === 'live' ? 'var(--accent-green)' : item.status === 'completed' ? 'var(--text-muted)' : 'var(--accent-blue)', boxShadow: item.status === 'live' ? '0 0 8px var(--accent-green)' : 'none' }}></div>
-                          <div>
-                            <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', textDecoration: item.status === 'completed' ? 'line-through' : 'none', opacity: item.status === 'completed' ? 0.5 : 1 }}>{item.title}</p>
-                            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.time}</p>
-                          </div>
-                        </div>
-                        <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full" style={{ background: item.status === 'live' ? 'var(--accent-green-dim)' : 'var(--accent-blue-dim)', color: item.status === 'live' ? 'var(--accent-green)' : 'var(--accent-blue)' }}>
-                          {item.status}
-                        </span>
-                      </div>
-                    ))}
-                    {state.schedule.length === 0 && <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No schedule data yet.</p>}
-                  </div>
-                  {/* Admin quick-add schedule */}
-                  {isAdmin && (
-                    <form className="mt-3 flex gap-2" onSubmit={async (e) => {
-                      e.preventDefault();
-                      const form = e.currentTarget as HTMLFormElement;
-                      const title = (form.elements.namedItem("stitle") as HTMLInputElement).value;
-                      const time = (form.elements.namedItem("stime") as HTMLInputElement).value;
-                      if (!title || !time) return;
-                      await addDoc(collection(db, "schedule"), { title, time, status: "upcoming" });
-                      (form.elements.namedItem("stitle") as HTMLInputElement).value = "";
-                      (form.elements.namedItem("stime") as HTMLInputElement).value = "";
-                    }}>
-                      <input name="stitle" placeholder="Event" required className="flex-1 t-input px-2 py-1.5 text-xs" />
-                      <input name="stime" placeholder="Time" required className="w-20 t-input px-2 py-1.5 text-xs" />
-                      <button type="submit" className="px-3 py-1.5 text-xs font-bold text-black rounded" style={{ background: 'var(--accent-blue)' }}>+</button>
-                    </form>
-                  )}
-                </article>
+                      <span className="px-2 py-0.5 text-[9px] font-bold uppercase flex-shrink-0" style={{ color: 'var(--accent-green)', border: '1px solid var(--accent-green)' }}>{tmpl.defaultSize}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-
-            {/* Right Sidebar - Activity Feed */}
-            <div className="space-y-6">
-              <ActivityFeed items={state.activity} freshIds={freshActivityIds} />
-            </div>
-          </section>
+          )}
           </div>
           )}
         </main>

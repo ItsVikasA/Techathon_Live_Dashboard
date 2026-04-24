@@ -769,6 +769,136 @@ export default function AdminControlsPage({
         document.body
       )}
 
+
+      {/* ============ TILE DATA MANAGEMENT ============ */}
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 mt-8">
+        
+        {/* Quick Links Admin */}
+        <section className="t-card p-5">
+          <SectionHeader icon={FiActivity} title="Quick Links" accentClass="icon-circle-cyan" />
+          <form className="space-y-2" onSubmit={async (e) => {
+            e.preventDefault();
+            const form = e.currentTarget;
+            const name = (form.elements.namedItem("qlname") as HTMLInputElement).value;
+            const url = (form.elements.namedItem("qlurl") as HTMLInputElement).value;
+            if (!name || !url) return;
+            await addDoc(collection(db, "quickLinks"), { name, url, timestamp: serverTimestamp() });
+            (form.elements.namedItem("qlname") as HTMLInputElement).value = "";
+            (form.elements.namedItem("qlurl") as HTMLInputElement).value = "";
+          }}>
+            <input name="qlname" placeholder="Link Name" required className="w-full t-input px-3 py-2 text-sm" />
+            <input name="qlurl" placeholder="https://..." required className="w-full t-input px-3 py-2 text-sm" />
+            <button type="submit" className="w-full py-2 font-bold text-sm text-black" style={{ background: 'var(--accent-cyan)', borderRadius: 'var(--card-radius)' }}>
+              <FiPlus className="inline mr-1" /> Add Link
+            </button>
+          </form>
+        </section>
+
+        {/* Problem Statements Admin */}
+        <section className="t-card p-5">
+          <SectionHeader icon={FiFileText} title="Problem Statements" accentClass="icon-circle-purple" />
+          <form className="space-y-2" onSubmit={async (e) => {
+            e.preventDefault();
+            const form = e.currentTarget;
+            const title = (form.elements.namedItem("pstitle") as HTMLInputElement).value;
+            const description = (form.elements.namedItem("psdesc") as HTMLTextAreaElement).value;
+            const difficulty = (form.elements.namedItem("psdiff") as HTMLInputElement).value || "medium";
+            const track = (form.elements.namedItem("pstrack") as HTMLInputElement).value;
+            if (!title || !description) return;
+            await addDoc(collection(db, "problemStatements"), { title, description, difficulty, track, timestamp: serverTimestamp() });
+            form.reset();
+          }}>
+            <input name="pstitle" placeholder="Problem Title" required className="w-full t-input px-3 py-2 text-sm" />
+            <textarea name="psdesc" placeholder="Description..." required className="w-full t-input px-3 py-2 text-sm resize-none h-20" />
+            <div className="flex gap-2">
+              <CustomSelect name="psdiff" options={[
+                { label: "Easy", value: "easy" },
+                { label: "Medium", value: "medium" },
+                { label: "Hard", value: "hard" },
+              ]} />
+              <input name="pstrack" placeholder="Track" className="flex-1 t-input px-3 py-2 text-sm" />
+            </div>
+            <button type="submit" className="w-full py-2 font-bold text-sm text-black" style={{ background: 'var(--accent-purple)', borderRadius: 'var(--card-radius)' }}>
+              <FiPlus className="inline mr-1" /> Add Problem
+            </button>
+          </form>
+        </section>
+
+        {/* Idea Board Admin */}
+        <section className="t-card p-5">
+          <SectionHeader icon={FiBell} title="Idea Board" accentClass="icon-circle-orange" />
+          <form className="space-y-2" onSubmit={async (e) => {
+            e.preventDefault();
+            const form = e.currentTarget;
+            const prompt = (form.elements.namedItem("ideaprompt") as HTMLInputElement).value;
+            const category = (form.elements.namedItem("ideacat") as HTMLInputElement).value;
+            if (!prompt) return;
+            await addDoc(collection(db, "ideaBoard"), { prompt, category, timestamp: serverTimestamp() });
+            form.reset();
+          }}>
+            <input name="ideaprompt" placeholder="Innovation prompt..." required className="w-full t-input px-3 py-2 text-sm" />
+            <input name="ideacat" placeholder="Category (optional)" className="w-full t-input px-3 py-2 text-sm" />
+            <button type="submit" className="w-full py-2 font-bold text-sm text-black" style={{ background: 'var(--accent-orange)', borderRadius: 'var(--card-radius)' }}>
+              <FiPlus className="inline mr-1" /> Add Prompt
+            </button>
+          </form>
+        </section>
+
+        {/* Resources Admin */}
+        <section className="t-card p-5">
+          <SectionHeader icon={FiTarget} title="Resources" accentClass="icon-circle-blue" />
+          <form className="space-y-2" onSubmit={async (e) => {
+            e.preventDefault();
+            const form = e.currentTarget;
+            const name = (form.elements.namedItem("resname") as HTMLInputElement).value;
+            const url = (form.elements.namedItem("resurl") as HTMLInputElement).value;
+            const category = (form.elements.namedItem("rescat") as HTMLInputElement).value || "docs";
+            const description = (form.elements.namedItem("resdesc") as HTMLInputElement).value;
+            if (!name || !url) return;
+            await addDoc(collection(db, "resources"), { name, url, category, description });
+            form.reset();
+          }}>
+            <input name="resname" placeholder="Resource Name" required className="w-full t-input px-3 py-2 text-sm" />
+            <input name="resurl" placeholder="https://..." required className="w-full t-input px-3 py-2 text-sm" />
+            <div className="flex gap-2">
+              <CustomSelect name="rescat" options={[
+                { label: "API", value: "api" },
+                { label: "Docs", value: "docs" },
+                { label: "Tool", value: "tool" },
+                { label: "Template", value: "template" },
+              ]} />
+              <input name="resdesc" placeholder="Description" className="flex-1 t-input px-3 py-2 text-sm" />
+            </div>
+            <button type="submit" className="w-full py-2 font-bold text-sm text-black" style={{ background: 'var(--accent-blue)', borderRadius: 'var(--card-radius)' }}>
+              <FiPlus className="inline mr-1" /> Add Resource
+            </button>
+          </form>
+        </section>
+
+        {/* Voting Admin */}
+        <section className="t-card p-5 md:col-span-2">
+          <SectionHeader icon={FiBarChart2} title="Audience Voting" accentClass="icon-circle-pink" />
+          <form className="space-y-2" onSubmit={async (e) => {
+            e.preventDefault();
+            const form = e.currentTarget;
+            const question = (form.elements.namedItem("vquestion") as HTMLInputElement).value;
+            const optionsRaw = (form.elements.namedItem("voptions") as HTMLInputElement).value;
+            if (!question || !optionsRaw) return;
+            const options = optionsRaw.split(",").map(s => ({ label: s.trim(), votes: 0 })).filter(o => o.label);
+            if (options.length < 2) return;
+            await addDoc(collection(db, "votes"), { question, options, isActive: true, timestamp: serverTimestamp() });
+            form.reset();
+          }}>
+            <input name="vquestion" placeholder="Poll Question" required className="w-full t-input px-3 py-2 text-sm" />
+            <input name="voptions" placeholder="Option 1, Option 2, Option 3..." required className="w-full t-input px-3 py-2 text-sm" />
+            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Separate options with commas. Min 2 options.</p>
+            <button type="submit" className="w-full py-2 font-bold text-sm text-black" style={{ background: 'var(--accent-pink)', borderRadius: 'var(--card-radius)' }}>
+              <FiPlus className="inline mr-1" /> Create Poll
+            </button>
+          </form>
+        </section>
+      </div>
+
     </div>
   );
 }
