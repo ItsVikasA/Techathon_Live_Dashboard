@@ -888,6 +888,43 @@ const ProjectorLeaderboardSlide = memo(function ProjectorLeaderboardSlide({ team
 const ProjectorGallerySlide = memo(function ProjectorGallerySlide({ items }: { items: GalleryItem[] }) {
   const [slideIndex, setSlideIndex] = useState(0);
 
+  const resolveProjectorMedia = (url: string) => {
+    const input = url.trim();
+    if (!input) {
+      return { kind: "none" as const, src: "" };
+    }
+
+    if (input.includes("drive.google.com")) {
+      const folderMatch = input.match(/\/folders\/([a-zA-Z0-9-_]+)/);
+      if (folderMatch) {
+        return {
+          kind: "iframe" as const,
+          src: `https://drive.google.com/embeddedfolderview?id=${folderMatch[1]}#grid`,
+        };
+      }
+
+      const idMatch = input.match(/[?&]id=([a-zA-Z0-9-_]+)/);
+      if (idMatch) {
+        return {
+          kind: "iframe" as const,
+          src: `https://drive.google.com/file/d/${idMatch[1]}/preview`,
+        };
+      }
+
+      const fileMatch = input.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
+      if (fileMatch) {
+        return {
+          kind: "iframe" as const,
+          src: `https://drive.google.com/file/d/${fileMatch[1]}/preview`,
+        };
+      }
+
+      return { kind: "iframe" as const, src: input };
+    }
+
+    return { kind: "image" as const, src: input };
+  };
+
   useEffect(() => {
     if (slideIndex >= items.length) {
       setSlideIndex(0);
@@ -907,6 +944,7 @@ const ProjectorGallerySlide = memo(function ProjectorGallerySlide({ items }: { i
   }, [items.length]);
 
   const current = items[slideIndex] ?? null;
+  const media = resolveProjectorMedia(current?.imageUrl ?? "");
 
   return (
     <section className="projector-fade grid h-full grid-cols-1 gap-10 xl:grid-cols-[2fr_1fr] bg-black p-10 border-[12px] border-[#A855F7] font-mono relative">
@@ -914,7 +952,17 @@ const ProjectorGallerySlide = memo(function ProjectorGallerySlide({ items }: { i
       
       <div className="overflow-hidden border-[8px] border-[#A855F7] bg-black relative z-10 flex items-center justify-center">
         {current ? (
-          <img src={current.imageUrl} alt="Gallery slide" className="h-full w-full object-contain p-4" />
+          media.kind === "iframe" ? (
+            <iframe
+              src={media.src}
+              title="Gallery slide"
+              className="h-full w-full border-none"
+              allow="autoplay"
+              allowFullScreen
+            />
+          ) : (
+            <img src={media.src} alt="Gallery slide" className="h-full w-full object-contain p-4" />
+          )
         ) : (
           <div className="text-4xl text-[#A855F7] font-black uppercase animate-pulse">SIGNAL_STRENGTH_WEAK</div>
         )}
