@@ -55,6 +55,7 @@ import {
 } from "react-icons/fi";
 import { auth, db } from "./firebase";
 import logo from "./assets/logo.png";
+import bgmitProfile from "./assets/BGMIT.jpeg";
 import {
   AnalyticsCharts,
   type ProblemStatementPoint,
@@ -2200,7 +2201,7 @@ function App() {
               </button>
               <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 t-card rounded-full max-w-full">
                 <img
-                  src="https://i.pravatar.cc/80?img=12"
+                  src={bgmitProfile}
                   alt="Profile"
                   className="h-9 w-9 rounded-full object-cover"
                   style={{ boxShadow: '0 0 0 2px var(--accent-green)' }}
