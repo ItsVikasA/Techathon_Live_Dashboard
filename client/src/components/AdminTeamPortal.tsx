@@ -24,6 +24,7 @@ import {
   FiFileText,
   FiInfo,
   FiX,
+  FiDownload,
 } from "react-icons/fi";
 import type { TeamPortalEntry, TeamPortalParticipant } from "../types";
 
@@ -34,6 +35,44 @@ function generateCode(): string {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return code;
+}
+
+function exportTeamCodesAsCSV(teams: TeamPortalEntry[]): void {
+  const headers = ["Team Name", "Leader Name", "Leader Email", "Team Code", "Members Count"];
+  const rows = teams.map((t) => [
+    t.teamName,
+    t.leaderName,
+    t.leaderEmail,
+    t.teamCode,
+    String((t.participants?.length || 0) + 1),
+  ]);
+
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `team-codes-${new Date().toISOString().split("T")[0]}.csv`;
+  link.click();
+}
+
+function exportTeamCodesAsText(teams: TeamPortalEntry[]): void {
+  const content = teams
+    .map((t) => `${t.teamName.padEnd(25)} | Code: ${t.teamCode} | Leader: ${t.leaderName}`)
+    .join("\n");
+
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `team-codes-${new Date().toISOString().split("T")[0]}.txt`;
+  link.click();
+}
+
+function copyAllCodesToClipboard(teams: TeamPortalEntry[]): void {
+  const content = teams.map((t) => `${t.teamName}: ${t.teamCode}`).join("\n");
+  navigator.clipboard.writeText(content);
 }
 
 export default function AdminTeamPortal({
@@ -204,6 +243,51 @@ export default function AdminTeamPortal({
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => copyAllCodesToClipboard(teams)}
+            title="Copy all codes to clipboard"
+            className="px-4 py-2.5 text-sm font-bold flex items-center gap-2 transition"
+            style={{
+              background: "var(--bg-inset)",
+              color: "var(--accent-cyan)",
+              border: "2px solid var(--accent-cyan)",
+              borderRadius: "var(--card-radius)",
+            }}
+          >
+            <FiCopy size={14} />
+            Copy All Codes
+          </button>
+          <button
+            type="button"
+            onClick={() => exportTeamCodesAsCSV(teams)}
+            title="Export team codes as CSV"
+            className="px-4 py-2.5 text-sm font-bold flex items-center gap-2 transition"
+            style={{
+              background: "var(--bg-inset)",
+              color: "var(--accent-orange)",
+              border: "2px solid var(--accent-orange)",
+              borderRadius: "var(--card-radius)",
+            }}
+          >
+            <FiDownload size={14} />
+            Export CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => exportTeamCodesAsText(teams)}
+            title="Export team codes as text"
+            className="px-4 py-2.5 text-sm font-bold flex items-center gap-2 transition"
+            style={{
+              background: "var(--bg-inset)",
+              color: "var(--accent-blue)",
+              border: "2px solid var(--accent-blue)",
+              borderRadius: "var(--card-radius)",
+            }}
+          >
+            <FiDownload size={14} />
+            Export Text
+          </button>
           <button
             type="button"
             onClick={() => {
