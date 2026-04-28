@@ -54,6 +54,7 @@ import {
   FiRefreshCw,
 } from "react-icons/fi";
 import { auth, db } from "./firebase";
+import logo from "./assets/logo.png";
 import {
   AnalyticsCharts,
   type ProblemStatementPoint,
@@ -1239,11 +1240,7 @@ function App() {
 
   const [hasActiveHelpRequests, setHasActiveHelpRequests] = useState(false);
   const [showCredits, setShowCredits] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setShowCredits(false), 10000);
-    return () => clearTimeout(timer);
-  }, []);
+ 
   useEffect(() => {
     const unsub = onSnapshot(
       query(collection(db, "helpRequests")),
@@ -2077,8 +2074,8 @@ function App() {
         <main className="t-surface p-3 sm:p-4 md:p-6 w-full">
           <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3 w-full lg:w-auto">
-              <div className="grid h-10 w-10 place-items-center rounded-none border-2 shadow-[4px_4px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_rgba(255,255,255,1)]" style={{ background: 'var(--accent-green)', color: '#000', borderColor: 'var(--text-primary)' }}>
-                <FiTarget size={20} strokeWidth={3} />
+              <div className="h-10 w-10 rounded-none border-2 shadow-[4px_4px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_rgba(255,255,255,1)] overflow-hidden" style={{ background: 'var(--accent-green)', borderColor: 'var(--text-primary)' }}>
+                <img src={logo} alt="logo" className="h-full w-full object-contain" />
               </div>
               <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-widest" style={{ color: 'var(--text-primary)' }}>
                 TECHATHON_<span style={{ color: 'var(--accent-green)' }}>1.0</span>
@@ -2429,12 +2426,9 @@ function App() {
       {/* ============ CREDITS BADGE ============ */}
       {showCredits && (
         <div className="fixed bottom-4 right-4 z-[99999] flex items-center gap-2 t-card px-4 py-2 rounded-full animate-fade-in transition-all hover:-translate-y-1" style={{ background: 'var(--bg-card)' }}>
-          <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: 'var(--text-primary)' }}>
-            Made by
-            <a href="https://www.linkedin.com/in/samarth-k-632720275" target="_blank" rel="noopener noreferrer" className="ml-1 hover:underline"> Samarth</a>
-            <span className="mx-1">&</span>
-            <a href="https://tr.ee/l6WQa9M0UF" target="_blank" rel="noopener noreferrer" className="hover:underline">Vikas</a>
-          </span>
+          <a href="https://www.linkedin.com/in/samarth-k-632720275" target="_blank" rel="noopener noreferrer" className="text-[10px] font-black tracking-widest uppercase hover:underline" style={{ color: 'var(--text-primary)' }}>
+            Made By Samarth
+          </a>
           <button onClick={() => setShowCredits(false)} className="ml-2 text-neutral-500 hover:text-red-500 transition-colors">
             <FiX size={14} />
           </button>
