@@ -1243,6 +1243,11 @@ function App() {
 
   const [hasActiveHelpRequests, setHasActiveHelpRequests] = useState(false);
   const [showCredits, setShowCredits] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowCredits(false), 10000);
+    return () => clearTimeout(timer);
+  }, []);
  
   useEffect(() => {
     const unsub = onSnapshot(
@@ -2432,9 +2437,16 @@ function App() {
       {/* ============ CREDITS BADGE ============ */}
       {showCredits && (
         <div className="fixed bottom-4 right-4 z-[99999] flex items-center gap-2 t-card px-4 py-2 rounded-full animate-fade-in transition-all hover:-translate-y-1" style={{ background: 'var(--bg-card)' }}>
-          <a href="https://www.linkedin.com/in/samarth-k-632720275" target="_blank" rel="noopener noreferrer" className="text-[10px] font-black tracking-widest uppercase hover:underline" style={{ color: 'var(--text-primary)' }}>
-            Made By Samarth
-          </a>
+          <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: 'var(--text-primary)' }}>
+            Made by
+            <a href="https://www.linkedin.com/in/samarth-k-632720275" target="_blank" rel="noopener noreferrer" className="ml-1 hover:underline">
+              Samarth
+            </a>
+            <span className="mx-1">&</span>
+            <a href="https://linktr.ee/Its_VikasA" target="_blank" rel="noopener noreferrer" className="hover:underline">
+              Vikas
+            </a>
+          </span>
           <button onClick={() => setShowCredits(false)} className="ml-2 text-neutral-500 hover:text-red-500 transition-colors">
             <FiX size={14} />
           </button>
