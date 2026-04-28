@@ -80,6 +80,9 @@ import type {
   ScheduleItem,
   StatDoc,
   Team,
+  DepartmentPoint,
+  SubmissionPoint,
+  ActiveUserPoint,
   TileConfig,
   TileType,
   TileSize,
@@ -2214,7 +2217,10 @@ function App() {
                 <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>Award and modify points for competing teams.</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {state.teams.filter(t => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()) || t.department.toLowerCase().includes(searchQuery.toLowerCase())).map((t) => (
+                {state.teams.filter(t => {
+                  const dept = (t.department ?? "").toLowerCase();
+                  return !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()) || dept.includes(searchQuery.toLowerCase());
+                }).map((t) => (
                   <article key={t.id} className="t-card p-5 flex flex-col gap-3">
                     <div className="flex items-center gap-3">
                       <div className="icon-circle icon-circle-green" style={{ width: 40, height: 40 }}>
@@ -2222,7 +2228,7 @@ function App() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="font-bold truncate" style={{ color: 'var(--text-primary)' }}>{t.name}</p>
-                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t.department} • {t.members?.length} members</p>
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t.department ?? '—'} • {t.members?.length} members</p>
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-black" style={{ color: 'var(--accent-green)' }}>{t.score}</p>
