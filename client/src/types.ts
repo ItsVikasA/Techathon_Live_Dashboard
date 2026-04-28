@@ -65,6 +65,11 @@ export type ActiveUsersPoint = {
   activeUsers: number;
 };
 
+// Backwards-compatible aliases expected by older code
+export type DepartmentPoint = DepartmentAnalytics;
+export type SubmissionPoint = SubmissionTrend;
+export type ActiveUserPoint = ActiveUsersPoint;
+
 // ============ TILE SYSTEM TYPES ============
 
 export type TileSize = "sm" | "md" | "lg" | "xl";
