@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { addDoc, collection, doc, serverTimestamp, setDoc, updateDoc, deleteDoc, deleteField } from "firebase/firestore";
+import { addDoc, collection, doc, serverTimestamp, setDoc, updateDoc, deleteDoc, deleteField, onSnapshot, orderBy, query } from "firebase/firestore";
 import { useMemo, memo } from "react";
 import { FiTrash2, FiPlus, FiChevronDown, FiChevronRight, FiUsers, FiTarget, FiCalendar, FiBarChart2, FiBell, FiImage, FiActivity, FiFileText, FiEdit3, FiCheck, FiHash, FiPlay, FiClock, FiGrid } from "react-icons/fi";
 import { db } from "../firebase";
@@ -87,8 +87,18 @@ export default function AdminControlsPage({
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
 
   // Problem Statements state
-  const [problemStatements, setProblemStatements] = useState<{ id: string; title: string; description: string; track?: string }[]>([]);
+  const [problemStatements, setProblemStatements] = useState<{ id: string; title: string; description: string; track?: string; difficulty?: string }[]>([]);
   const [psForm, setPsForm] = useState({ title: "", description: "", track: "" });
+
+  // Listen to problem statements from Firestore
+  useEffect(() => {
+    const unsub = onSnapshot(
+      query(collection(db, "problemStatements"), orderBy("timestamp", "desc")),
+      (snap) => setProblemStatements(snap.docs.map(d => ({ id: d.id, ...d.data() } as { id: string; title: string; description: string; track?: string; difficulty?: string }))),
+      () => {}
+    );
+    return () => unsub();
+  }, []);
 
   const [activeAdminTab, setActiveAdminTab] = useState("Stats");
 
@@ -252,6 +262,10 @@ export default function AdminControlsPage({
   const handleAssignStatement = async (teamId: string, statementTitle: string) => {
     await updateDoc(doc(db, "teamPortal", teamId), { problemStatementTitle: statementTitle });
     showMessage(`Assigned "${statementTitle}" to team.`);
+  };
+
+  const handleDeleteProblemStatement = (id: string, title: string) => {
+    setConfirmDelete({ id, collection: "problemStatements", message: `Delete problem statement "${title}"?` });
   };
 
   // Announcements
@@ -511,43 +525,104 @@ export default function AdminControlsPage({
 
         {/* ===== PROBLEM STATEMENTS TAB ===== */}
         {activeAdminTab === "Problem Statements" && (
-          <div className="grid lg:grid-cols-2 gap-5 sm:gap-8">
-            <form className="space-y-4 p-4 sm:p-6 t-inset" style={{ borderRadius: 'var(--card-radius)' }} onSubmit={handleAddProblemStatement}>
-              <SectionHeader icon={FiFileText} title="Add Problem Statement" accentClass="icon-circle-orange" />
-              <input required placeholder="Problem Statement Title" value={psForm.title} onChange={(e) => setPsForm(p => ({ ...p, title: e.target.value }))} className="w-full t-input p-3 text-sm" />
-              <textarea required placeholder="Detailed description of the problem..." value={psForm.description} onChange={(e) => setPsForm(p => ({ ...p, description: e.target.value }))} className="w-full t-input p-3 text-sm min-h-[100px] resize-y" />
-              <input placeholder="Track / Category (optional)" value={psForm.track} onChange={(e) => setPsForm(p => ({ ...p, track: e.target.value }))} className="w-full t-input p-3 text-sm" />
-              <button type="submit" className="w-full font-semibold py-3 px-6 text-sm text-black transition" style={{ background: 'var(--accent-orange)', borderRadius: 'var(--card-radius)' }}>
-                <FiPlus className="inline mr-2" />Publish Problem Statement
-              </button>
-            </form>
+          <div className="space-y-5 sm:space-y-8">
+            {/* Published Problem Statements List */}
             <div>
-              <SectionHeader icon={FiTarget} title="Assign to Teams" accentClass="icon-circle-purple" />
-              <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Select a team and assign a problem statement to them.</p>
+              <SectionHeader icon={FiFileText} title="Published Problem Statements" count={problemStatements.length} accentClass="icon-circle-purple" />
+              <BulkActionBar collection="problemStatements" items={problemStatements} />
               <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
-                {state.teams.map((t) => (
-                  <div key={t.id} className="p-4 t-inset flex flex-col sm:flex-row items-start sm:items-center gap-3 justify-between" style={{ borderRadius: 'var(--card-radius)' }}>
-                    <div>
-                      <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{t.name}</p>
-                      <p className="text-xs mt-0.5" style={{ color: (t as any).problemStatement ? 'var(--accent-purple)' : 'var(--text-muted)' }}>
-                        {(t as any).problemStatement || "No statement assigned"}
-                      </p>
+                {problemStatements.map((ps) => (
+                  <div 
+                    key={ps.id} 
+                    className="transition select-none" 
+                    style={{ 
+                      background: selectedItems.has(ps.id) ? 'var(--accent-purple-dim)' : 'var(--bg-inset)', 
+                      border: selectedItems.has(ps.id) ? '2px solid var(--accent-purple)' : '1px solid var(--border-main)', 
+                      borderRadius: 'var(--card-radius)' 
+                    }}
+                  >
+                    <div className="p-4 flex items-start justify-between cursor-pointer" onClick={(e) => { if ((e.target as HTMLElement).tagName !== 'BUTTON') toggleSelection(ps.id) }}>
+                      <div className="flex gap-3 items-start flex-1 min-w-0">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedItems.has(ps.id)} 
+                          readOnly 
+                          className="mt-1 w-4 h-4 rounded cursor-pointer accent-[var(--accent-purple)]" 
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold leading-tight text-sm" style={{ color: 'var(--text-primary)' }}>
+                            {ps.title}
+                          </p>
+                          {ps.track && (
+                            <p className="text-xs mt-1" style={{ color: 'var(--accent-purple)' }}>
+                              Track: {ps.track}
+                            </p>
+                          )}
+                          {ps.difficulty && (
+                            <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: 'var(--accent-orange-dim)', color: 'var(--accent-orange)' }}>
+                              {ps.difficulty}
+                            </span>
+                          )}
+                          <p className="text-xs mt-2 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>
+                            {ps.description}
+                          </p>
+                        </div>
+                      </div>
+                      <DeleteBtn onClick={(e: any) => { e.stopPropagation(); handleDeleteProblemStatement(ps.id, ps.title); }} />
                     </div>
-                    <select
-                      className="t-input px-2 py-1.5 text-xs w-full sm:w-auto sm:max-w-[200px]"
-                      value={(t as any).problemStatement || ""}
-                      onChange={(e) => { if (e.target.value) handleAssignStatement(t.id, e.target.value); }}
-                    >
-                      <option value="">— Select —</option>
-                      <option value="Open Choice">Open Choice</option>
-                    </select>
                   </div>
                 ))}
-                {state.teams.length === 0 && (
+                {problemStatements.length === 0 && (
                   <div className="text-center py-10 t-inset" style={{ borderRadius: 'var(--card-radius)' }}>
-                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No teams registered yet.</p>
+                    <FiFileText size={48} style={{ color: 'var(--text-muted)', margin: '0 auto 16px' }} />
+                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No problem statements published yet.</p>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Add and Assign Grid */}
+            <div className="grid lg:grid-cols-2 gap-5 sm:gap-8">
+              <form className="space-y-4 p-4 sm:p-6 t-inset" style={{ borderRadius: 'var(--card-radius)' }} onSubmit={handleAddProblemStatement}>
+                <SectionHeader icon={FiFileText} title="Add Problem Statement" accentClass="icon-circle-orange" />
+                <input required placeholder="Problem Statement Title" value={psForm.title} onChange={(e) => setPsForm(p => ({ ...p, title: e.target.value }))} className="w-full t-input p-3 text-sm" />
+                <textarea required placeholder="Detailed description of the problem..." value={psForm.description} onChange={(e) => setPsForm(p => ({ ...p, description: e.target.value }))} className="w-full t-input p-3 text-sm min-h-[100px] resize-y" />
+                <input placeholder="Track / Category (optional)" value={psForm.track} onChange={(e) => setPsForm(p => ({ ...p, track: e.target.value }))} className="w-full t-input p-3 text-sm" />
+                <button type="submit" className="w-full font-semibold py-3 px-6 text-sm text-black transition" style={{ background: 'var(--accent-orange)', borderRadius: 'var(--card-radius)' }}>
+                  <FiPlus className="inline mr-2" />Publish Problem Statement
+                </button>
+              </form>
+              <div>
+                <SectionHeader icon={FiTarget} title="Assign to Teams" accentClass="icon-circle-purple" />
+                <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Select a team and assign a problem statement to them.</p>
+                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                  {state.teams.map((t) => (
+                    <div key={t.id} className="p-4 t-inset flex flex-col sm:flex-row items-start sm:items-center gap-3 justify-between" style={{ borderRadius: 'var(--card-radius)' }}>
+                      <div>
+                        <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{t.name}</p>
+                        <p className="text-xs mt-0.5" style={{ color: (t as any).problemStatement ? 'var(--accent-purple)' : 'var(--text-muted)' }}>
+                          {(t as any).problemStatement || "No statement assigned"}
+                        </p>
+                      </div>
+                      <select
+                        className="t-input px-2 py-1.5 text-xs w-full sm:w-auto sm:max-w-[200px]"
+                        value={(t as any).problemStatement || ""}
+                        onChange={(e) => { if (e.target.value) handleAssignStatement(t.id, e.target.value); }}
+                      >
+                        <option value="">— Select —</option>
+                        <option value="Open Choice">Open Choice</option>
+                        {problemStatements.map((ps) => (
+                          <option key={ps.id} value={ps.title}>{ps.title}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                  {state.teams.length === 0 && (
+                    <div className="text-center py-10 t-inset" style={{ borderRadius: 'var(--card-radius)' }}>
+                      <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No teams registered yet.</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
