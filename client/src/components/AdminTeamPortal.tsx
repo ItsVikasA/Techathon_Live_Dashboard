@@ -115,7 +115,22 @@ export default function AdminTeamPortal({
             id: d.id,
             ...(d.data() as Omit<TeamPortalEntry, "id">),
           }))
-          .sort((a, b) => (a.teamName || "").localeCompare(b.teamName || ""));
+          .sort((a, b) => {
+            // Sort by room name first (rooms with assignments come first)
+            const roomA = a.allottedRoom || "";
+            const roomB = b.allottedRoom || "";
+            
+            // If both have rooms or both don't have rooms, sort by room name
+            if (roomA && roomB) {
+              return roomA.localeCompare(roomB);
+            }
+            // Teams with rooms come before teams without rooms
+            if (roomA && !roomB) return -1;
+            if (!roomA && roomB) return 1;
+            
+            // If neither has a room, sort by team name
+            return (a.teamName || "").localeCompare(b.teamName || "");
+          });
         setTeams(data);
       }
     );
@@ -554,7 +569,7 @@ export default function AdminTeamPortal({
           </div>
         )}
 
-        {teams.map((t) => {
+        {teams.map((t, index) => {
           const isExpanded = expandedId === t.id;
           const isEditing = editingId === t.id;
 
@@ -572,6 +587,18 @@ export default function AdminTeamPortal({
                 onClick={() => setExpandedId(isExpanded ? null : t.id)}
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
+                  {/* Serial Number */}
+                  <div
+                    className="flex-shrink-0 w-8 h-8 flex items-center justify-center font-bold text-xs"
+                    style={{
+                      background: "var(--accent-cyan-dim)",
+                      color: "var(--accent-cyan)",
+                      borderRadius: "var(--card-radius)",
+                      border: "1px solid var(--accent-cyan)",
+                    }}
+                  >
+                    {index + 1}
+                  </div>
                   <button
                     type="button"
                     className="flex-shrink-0"
@@ -623,14 +650,15 @@ export default function AdminTeamPortal({
                   {/* Status indicators */}
                   {t.allottedRoom && (
                     <span
-                      className="hidden sm:flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase"
+                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase"
                       style={{
                         background: "var(--accent-green-dim)",
                         color: "var(--accent-green)",
                         borderRadius: "var(--card-radius)",
                       }}
+                      title={t.allottedRoom}
                     >
-                      <FiHome size={10} /> Room
+                      <FiHome size={10} /> {t.allottedRoom}
                     </span>
                   )}
                   {t.problemStatementTitle && (
@@ -882,11 +910,13 @@ export default function AdminTeamPortal({
                             <FiHome size={10} /> Room
                           </p>
                           <p
-                            className="text-sm font-medium"
+                            className="text-sm font-medium break-words"
                             style={{
                               color: t.allottedRoom
                                 ? "var(--text-primary)"
                                 : "var(--text-muted)",
+                              wordBreak: "break-word",
+                              overflowWrap: "break-word",
                             }}
                           >
                             {t.allottedRoom || "Not assigned"}
@@ -907,11 +937,13 @@ export default function AdminTeamPortal({
                             <FiFileText size={10} /> Problem Statement
                           </p>
                           <p
-                            className="text-sm font-medium"
+                            className="text-sm font-medium break-words"
                             style={{
                               color: t.problemStatementTitle
                                 ? "var(--text-primary)"
                                 : "var(--text-muted)",
+                              wordBreak: "break-word",
+                              overflowWrap: "break-word",
                             }}
                           >
                             {t.problemStatementTitle || "Not assigned"}
